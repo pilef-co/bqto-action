@@ -259,6 +259,7 @@ r = action('main.mjs', pro({ INPUT_INSTANCE: 'db', 'INPUT_LICENSE-KEY': 'BQTO-11
 assert.equal(r.status, 0, r.stdout + r.stderr)
 assert.equal(readFileSync(join(dir, 'license-key'), 'utf8'), 'BQTO-1111-2222')
 assert.match(r.stdout, /::add-mask::BQTO-1111-2222/)
+assert.doesNotMatch(r.stdout, /::warning::license-key/)
 assert.match(r.stdout, /no-key/)
 assert.doesNotMatch(readFileSync(join(dir, 'bqto-environ'), 'utf8'), /^INPUT_LICENSE-KEY=/m)
 

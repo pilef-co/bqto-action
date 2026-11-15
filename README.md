@@ -274,8 +274,8 @@ and pass it in `license-key`:
 
 CI uses none of the computers of the seat, and every job and repository can use
 the same key. The action masks the key in the log and does not put it in the
-environment of the command in `run` or of later steps. If bqto Pro cannot use the key, the job runs as the free bqto,
-and a Pro feature says why.
+environment of the command in `run` or of later steps. If bqto Pro cannot use
+the key, the job runs as the free bqto, and a Pro feature says why.
 
 What the action does differently with bqto Pro:
 
