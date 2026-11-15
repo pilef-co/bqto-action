@@ -275,6 +275,11 @@ for (const name of ['GITHUB_ENV', 'GITHUB_OUTPUT', 'GITHUB_STATE']) assert.doesN
 const keyState = read('GITHUB_STATE')
 assert.equal(action('post.mjs', { STATE_pid: keyState.pid, STATE_log: keyState.log }).status, 0)
 
+// license-key with the free edition: a warning says it needs edition: pro.
+r = action('main.mjs', { INPUT_INSTANCE: 'db', 'INPUT_LICENSE-KEY': 'BQTO-1111-2222', INPUT_RUN: 'true' })
+assert.equal(r.status, 0, r.stdout + r.stderr)
+assert.match(r.stdout, /::warning::license-key needs edition: pro/)
+
 // Without license-key, bqto gets no key from the action.
 r = action('main.mjs', { INPUT_INSTANCE: 'db', INPUT_RUN: 'true' })
 assert.equal(r.status, 0, r.stdout + r.stderr)
