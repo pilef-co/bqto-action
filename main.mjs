@@ -165,7 +165,7 @@ const licenseKey = input('license-key')
 delete env['INPUT_LICENSE-KEY']
 if (licenseKey) {
   console.log(`::add-mask::${escape(licenseKey)}`)
-  if (edition !== 'pro') console.log('::warning::license-key needs edition: pro; the free bqto ignores it')
+  if (edition !== 'pro') console.log('::warning::license-key needs edition: pro. The free bqto ignores the key.')
   env.BQTO_LICENSE_KEY = licenseKey
 }
 // The command in run gets the job's XDG_CONFIG_HOME back, and never the license key.

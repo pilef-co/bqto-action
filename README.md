@@ -260,8 +260,8 @@ during the beta.
           run: curl -fsS https://api-123456.europe-west1.run.app/healthz
 ```
 
-With a paid bqto Pro seat, save its key as a repository or organization secret
-and pass it in `license-key`:
+If you have a paid bqto Pro seat, save its key as a repository or organization
+secret, and pass it in `license-key`:
 
 ```yaml
       - uses: pilef-co/bqto-action@v1
@@ -272,10 +272,10 @@ and pass it in `license-key`:
           config: .github/bqto.toml
 ```
 
-CI uses none of the computers of the seat, and every job and repository can use
-the same key. The action masks the key in the log and does not put it in the
-environment of the command in `run` or of later steps. If bqto Pro cannot use
-the key, the job runs as the free bqto, and a Pro feature says why.
+A seat's key works in CI without using one of its computers, in every job and
+repository. The action hides the key in the log. The command in `run` and later
+steps do not get the key in their environment. If bqto Pro cannot use the key,
+the job runs as the free bqto, and a Pro feature shows the reason.
 
 What the action does differently with bqto Pro:
 
