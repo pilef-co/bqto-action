@@ -174,6 +174,7 @@ All inputs are optional. Set `instance`, or with bqto Pro, `profile` or
 | `port` | no |  | Local port. bqto's default is the service's port + 10000. |
 | `args` | no |  | Extra bqto connect flags, such as --debug. The action splits them into words as a shell does, with quotes and backslashes, but expands nothing. The action refuses --. |
 | `edition` | no | `free` | Which bqto runs: free runs the bqto binary that this action ships, pro downloads the newest bqto Pro beta build from Artifact Registry with the job's gcloud account. |
+| `license-key` | no |  | bqto Pro: the license key of a bqto Pro seat. Keep it in a secret, such as `secrets.BQTO_LICENSE_KEY`. |
 | `profile` | no |  | bqto Pro: one or more saved profiles, separated by commas, in one session. |
 | `stack` | no |  | bqto Pro: a saved stack of profiles, in one session. |
 | `config` | no |  | bqto Pro: path to a bqto config.toml that holds the profiles and stacks, such as .github/bqto.toml. |
@@ -258,6 +259,23 @@ during the beta.
           instance: europe-west1/api
           run: curl -fsS https://api-123456.europe-west1.run.app/healthz
 ```
+
+With a paid bqto Pro seat, save its key as a repository or organization secret
+and pass it in `license-key`:
+
+```yaml
+      - uses: pilef-co/bqto-action@v1
+        with:
+          edition: pro
+          license-key: ${{ secrets.BQTO_LICENSE_KEY }}
+          profile: api
+          config: .github/bqto.toml
+```
+
+CI uses none of the computers of the seat, and every job and repository can use
+the same key. The action masks the key in the log and does not pass it to the
+command in `run`. If bqto Pro cannot use the key, the job runs as the free bqto,
+and a Pro feature says why.
 
 What the action does differently with bqto Pro:
 

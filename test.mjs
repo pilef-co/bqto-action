@@ -8,6 +8,8 @@ import { join } from 'node:path'
 
 const FAKE = `#!/bin/sh
 printf '%s\\n' "$@" >"$RUNNER_TEMP/args"
+printf '%s' "\${BQTO_LICENSE_KEY-unset}" >"$RUNNER_TEMP/license-key"
+tr '\\000' '\\n' </proc/$$/environ >"$RUNNER_TEMP/bqto-environ"
 echo "$0" >"$RUNNER_TEMP/bqto-path"
 if [ -n "$XDG_CONFIG_HOME" ] && [ -f "$XDG_CONFIG_HOME/bqto/config.toml" ]; then
 	cp "$XDG_CONFIG_HOME/bqto/config.toml" "$RUNNER_TEMP/config-seen"
@@ -108,12 +110,13 @@ const files = Object.fromEntries(['GITHUB_OUTPUT', 'GITHUB_ENV', 'GITHUB_STATE']
 const baseEnv = () => {
   const env = { ...process.env, RUNNER_TEMP: dir, RUNNER_DEBUG: '', ...files }
   delete env.XDG_CONFIG_HOME
+  delete env.BQTO_LICENSE_KEY
   for (const name of Object.keys(env)) if (name.startsWith('INPUT_')) delete env[name]
   return env
 }
 const action = (script, env) => {
   for (const file of Object.values(files)) writeFileSync(file, '')
-  for (const file of ['args', 'bqto-path', 'gcloud.log', 'config-seen']) rmSync(join(dir, file), { force: true })
+  for (const file of ['args', 'bqto-path', 'gcloud.log', 'config-seen', 'license-key']) rmSync(join(dir, file), { force: true })
   return spawnSync('node', [join(dir, script)], { env: { ...baseEnv(), ...env }, encoding: 'utf8' })
 }
 const pro = env => ({
@@ -250,6 +253,32 @@ r = action('main.mjs', pro({ INPUT_INSTANCE: 'db', INPUT_RUN: 'true', 'INPUT_PRO
 assert.equal(r.status, 1)
 assert.match(r.stdout, /::error::pro-project is not a valid project/)
 assert.equal(existsSync(join(dir, 'gcloud.log')), false)
+
+// license-key: bqto gets the key, the log masks it, and the command in run does not see it.
+r = action('main.mjs', pro({ INPUT_INSTANCE: 'db', 'INPUT_LICENSE-KEY': 'BQTO-1111-2222', INPUT_RUN: 'test -z "\${BQTO_LICENSE_KEY+set}" && echo no-key' }))
+assert.equal(r.status, 0, r.stdout + r.stderr)
+assert.equal(readFileSync(join(dir, 'license-key'), 'utf8'), 'BQTO-1111-2222')
+assert.match(r.stdout, /::add-mask::BQTO-1111-2222/)
+assert.match(r.stdout, /no-key/)
+assert.doesNotMatch(readFileSync(join(dir, 'bqto-environ'), 'utf8'), /^INPUT_LICENSE-KEY=/m)
+
+// license-key with config and the job's XDG_CONFIG_HOME: run gets XDG_CONFIG_HOME back and no key.
+r = action('main.mjs', pro({ INPUT_PROFILE: 'app', INPUT_CONFIG: join(dir, 'profiles.toml'), 'INPUT_LICENSE-KEY': 'BQTO-1111-2222', XDG_CONFIG_HOME: '/x', INPUT_RUN: 'test -z "\${BQTO_LICENSE_KEY+set}" && echo "xdg=$XDG_CONFIG_HOME"' }))
+assert.equal(r.status, 0, r.stdout + r.stderr)
+assert.match(r.stdout, /xdg=\/x/)
+
+// license-key without run: bqto gets the key, and later steps do not.
+r = action('main.mjs', pro({ INPUT_INSTANCE: 'db', 'INPUT_LICENSE-KEY': 'BQTO-1111-2222' }))
+assert.equal(r.status, 0, r.stdout + r.stderr)
+assert.equal(readFileSync(join(dir, 'license-key'), 'utf8'), 'BQTO-1111-2222')
+for (const name of ['GITHUB_ENV', 'GITHUB_OUTPUT', 'GITHUB_STATE']) assert.doesNotMatch(readFileSync(files[name], 'utf8'), /BQTO-1111-2222/)
+const keyState = read('GITHUB_STATE')
+assert.equal(action('post.mjs', { STATE_pid: keyState.pid, STATE_log: keyState.log }).status, 0)
+
+// Without license-key, bqto gets no key from the action.
+r = action('main.mjs', { INPUT_INSTANCE: 'db', INPUT_RUN: 'true' })
+assert.equal(r.status, 0, r.stdout + r.stderr)
+assert.equal(readFileSync(join(dir, 'license-key'), 'utf8'), 'unset')
 
 r = await stubborn
 assert.equal(r.status, 0, r.stdout)

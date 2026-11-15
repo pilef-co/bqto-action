@@ -41,6 +41,9 @@ inputs:
     description: "Which bqto runs: free runs the bqto binary that this action ships, pro downloads the newest bqto Pro beta build from Artifact Registry with the job's gcloud account."
     required: false
     default: free
+  license-key:
+    description: "bqto Pro: the license key of a bqto Pro seat. Keep it in a secret, such as secrets.BQTO_LICENSE_KEY."
+    required: false
   profile:
     description: "bqto Pro: one or more saved profiles, separated by commas, in one session."
     required: false

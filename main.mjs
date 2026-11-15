@@ -160,7 +160,23 @@ if (config) {
   }
   env.XDG_CONFIG_HOME = home
 }
-const runEnv = config ? (process.env.XDG_CONFIG_HOME ? ['env', `XDG_CONFIG_HOME=${process.env.XDG_CONFIG_HOME}`] : ['env', '-u', 'XDG_CONFIG_HOME']) : []
+const licenseKey = input('license-key')
+// The runner also passes the key as INPUT_LICENSE-KEY; only bqto gets it, as BQTO_LICENSE_KEY.
+delete env['INPUT_LICENSE-KEY']
+if (licenseKey) {
+  console.log(`::add-mask::${escape(licenseKey)}`)
+  env.BQTO_LICENSE_KEY = licenseKey
+}
+// The command in run gets the job's XDG_CONFIG_HOME back, and never the license key.
+// env reads options only before the first NAME=VALUE, so every -u comes first.
+const unset = []
+const set = []
+if (config) {
+  if (process.env.XDG_CONFIG_HOME) set.push(`XDG_CONFIG_HOME=${process.env.XDG_CONFIG_HOME}`)
+  else unset.push('XDG_CONFIG_HOME')
+}
+if (licenseKey) unset.push('BQTO_LICENSE_KEY')
+const runEnv = unset.length || set.length ? ['env', ...unset.flatMap(name => ['-u', name]), ...set] : []
 
 const args = ['connect']
 for (const name of ['service', 'project', 'instance', 'profile', 'stack', 'network', 'region', 'zone', 'duration', 'port']) {
