@@ -173,7 +173,7 @@ All inputs are optional. Set `instance`, or with bqto Pro, `profile` or
 | `zone` | no |  | Zone of the bastion VM. bqto's default is the first zone in the region with capacity. |
 | `port` | no |  | Local port. bqto's default is the service's port + 10000. |
 | `args` | no |  | Extra bqto connect flags, such as --debug. The action splits them into words as a shell does, with quotes and backslashes, but expands nothing. The action refuses --. |
-| `edition` | no | `free` | Which bqto runs: free runs the bqto binary that this action ships, pro downloads the newest bqto Pro beta build from Artifact Registry with the job's gcloud account. |
+| `edition` | no | `free` | Which bqto runs: free runs the bqto binary that this action ships, pro runs bqto Pro: the build this action carries when the job gives license-key, else the newest beta build from Artifact Registry with the job's gcloud account. |
 | `license-key` | no |  | bqto Pro: the license key of a bqto Pro seat. Keep it in a secret, such as `secrets.BQTO_LICENSE_KEY`. |
 | `profile` | no |  | bqto Pro: one or more saved profiles, separated by commas, in one session. |
 | `stack` | no |  | bqto Pro: a saved stack of profiles, in one session. |
