@@ -1,6 +1,6 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
-import { appendFileSync, chmodSync, copyFileSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync } from 'node:fs'
+import { appendFileSync, chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync } from 'node:fs'
 import { constants } from 'node:os'
 import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
@@ -145,7 +145,8 @@ if (process.platform !== 'linux' || !arch) {
 
 const edition = input('edition') || 'free'
 if (edition !== 'free' && edition !== 'pro') fail(`edition is ${edition}, not free or pro`)
-const pro = edition === 'pro' ? proBinary(arch) : null
+const carried = join(import.meta.dirname, 'bin', `bqto-pro_linux_${arch}`)
+const pro = edition === 'pro' ? (existsSync(carried) ? { path: carried, live: true } : proBinary(arch)) : null
 const bqto = pro?.path ?? join(import.meta.dirname, 'bin', `bqto_linux_${arch}`)
 
 const env = { ...process.env }

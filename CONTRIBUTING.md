@@ -26,3 +26,17 @@ release that `bin/checksums.txt` names. CI runs it without a tag and fails if
 
 The `update-bqto` workflow runs the script and opens a pull request. Run it from
 the Actions tab.
+
+## Carrying bqto Pro
+
+To carry the binaries of a paid bqto Pro release, run the script with its tag:
+
+```sh
+bin/update-pro.sh v0.12.0
+```
+
+It downloads the Linux archives and `checksums.txt` of that release from
+`pilef-co/bqto-pro-releases`, checks each archive, and writes
+`bin/bqto-pro_linux_amd64`, `bin/bqto-pro_linux_arm64` and
+`bin/pro-checksums.txt`. With them in `bin/`, `edition: pro` runs the carried
+build and downloads nothing.

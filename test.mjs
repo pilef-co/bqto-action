@@ -254,6 +254,14 @@ assert.equal(r.status, 1)
 assert.match(r.stdout, /::error::pro-project is not a valid project/)
 assert.equal(existsSync(join(dir, 'gcloud.log')), false)
 
+// A carried bqto Pro: edition pro runs it and asks Artifact Registry nothing.
+writeFileSync(join(dir, 'bin', `bqto-pro_linux_${arch}`), FAKE, { mode: 0o755 })
+r = action('main.mjs', { INPUT_EDITION: 'pro', INPUT_INSTANCE: 'db', INPUT_RUN: 'true' })
+assert.equal(r.status, 0, r.stdout + r.stderr)
+assert.equal(readFileSync(join(dir, 'bqto-path'), 'utf8').trim(), join(dir, 'bin', `bqto-pro_linux_${arch}`))
+assert.equal(existsSync(join(dir, 'gcloud.log')), false)
+rmSync(join(dir, 'bin', `bqto-pro_linux_${arch}`))
+
 // license-key: bqto gets the key, the log masks it, and the command in run does not see it.
 r = action('main.mjs', pro({ INPUT_INSTANCE: 'db', 'INPUT_LICENSE-KEY': 'BQTO-1111-2222', INPUT_RUN: 'test -z "\${BQTO_LICENSE_KEY+set}" && echo no-key' }))
 assert.equal(r.status, 0, r.stdout + r.stderr)
