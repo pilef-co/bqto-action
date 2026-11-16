@@ -244,8 +244,8 @@ On GitLab CI, Cloud Build, Jenkins and other CI systems, install bqto and run
 ## bqto Pro
 
 bqto Pro is the paid build of bqto, now in beta. To try it, join the beta at
-https://bqto.dev/#waitlist. With `edition: pro`, the action runs the bqto Pro
-build it carries, when it carries one. Otherwise it downloads the newest
+https://bqto.dev/#waitlist. With `edition: pro` and a `license-key`, the action
+runs the bqto Pro build it carries, when it carries one. Otherwise it downloads the newest
 bqto Pro build, checks it against its `checksums.txt` and runs it in place of
 the free bqto. The service account of the job needs
 `roles/artifactregistry.reader` on the beta repository, which Pilef grants
