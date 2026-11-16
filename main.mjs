@@ -145,8 +145,10 @@ if (process.platform !== 'linux' || !arch) {
 
 const edition = input('edition') || 'free'
 if (edition !== 'free' && edition !== 'pro') fail(`edition is ${edition}, not free or pro`)
+const licenseKey = input('license-key')
 const carried = join(import.meta.dirname, 'bin', `bqto-pro_linux_${arch}`)
-const pro = edition === 'pro' ? (existsSync(carried) ? { path: carried, live: true } : proBinary(arch)) : null
+// A paid build without a key works as the free bqto, so only a job with a key gets it, and the beta keeps its download.
+const pro = edition === 'pro' ? (licenseKey && existsSync(carried) ? { path: carried, live: false } : proBinary(arch)) : null
 const bqto = pro?.path ?? join(import.meta.dirname, 'bin', `bqto_linux_${arch}`)
 
 const env = { ...process.env }
@@ -161,7 +163,6 @@ if (config) {
   }
   env.XDG_CONFIG_HOME = home
 }
-const licenseKey = input('license-key')
 // The runner also passes the key as INPUT_LICENSE-KEY; only bqto gets it, as BQTO_LICENSE_KEY.
 delete env['INPUT_LICENSE-KEY']
 if (licenseKey) {
@@ -195,6 +196,8 @@ const webOff = ['0', 'f', 'F', 'false', 'FALSE', 'False']
 if (run && extra.some(a => /^--?web(=|$)/.test(a) && !webOff.includes(a.split('=')[1]))) {
   fail('--web with run would print the web proxy secret in the job log\nFix: drop --web; the command reaches Cloud Run through ALL_PROXY and HTTPS_PROXY')
 }
+// A carried paid build is Pro only when its key works, and the free bqto refuses --web.
+if (run && pro && pro.path === carried) pro.live = spawnSync(bqto, ['license', 'status'], { env, encoding: 'utf8' }).status === 0
 if (run && pro?.live) args.push('--web=false')
 if (run) {
   // The command's exit code is bqto's, and the runner's cancel signal goes to node only.

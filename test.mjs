@@ -15,6 +15,10 @@ if [ -n "$XDG_CONFIG_HOME" ] && [ -f "$XDG_CONFIG_HOME/bqto/config.toml" ]; then
 	cp "$XDG_CONFIG_HOME/bqto/config.toml" "$RUNNER_TEMP/config-seen"
 fi
 case " $* " in
+" license status ")
+	[ "\$BQTO_LICENSE_KEY" = BQTO-good ]
+	exit
+	;;
 *" --instance gone "*)
 	echo 'instance not found' >&2
 	exit 1
@@ -254,13 +258,25 @@ assert.equal(r.status, 1)
 assert.match(r.stdout, /::error::pro-project is not a valid project/)
 assert.equal(existsSync(join(dir, 'gcloud.log')), false)
 
-// A carried bqto Pro: edition pro runs it and asks Artifact Registry nothing.
-writeFileSync(join(dir, 'bin', `bqto-pro_linux_${arch}`), FAKE, { mode: 0o755 })
-r = action('main.mjs', { INPUT_EDITION: 'pro', INPUT_INSTANCE: 'db', INPUT_RUN: 'true' })
+// A carried bqto Pro: with a key, edition pro runs it and asks Artifact Registry nothing.
+const carried = join(dir, 'bin', `bqto-pro_linux_${arch}`)
+writeFileSync(carried, FAKE, { mode: 0o755 })
+r = action('main.mjs', { INPUT_EDITION: 'pro', INPUT_INSTANCE: 'db', 'INPUT_LICENSE-KEY': 'BQTO-good', INPUT_RUN: 'true' })
 assert.equal(r.status, 0, r.stdout + r.stderr)
-assert.equal(readFileSync(join(dir, 'bqto-path'), 'utf8').trim(), join(dir, 'bin', `bqto-pro_linux_${arch}`))
+assert.equal(readFileSync(join(dir, 'bqto-path'), 'utf8').trim(), carried)
 assert.equal(existsSync(join(dir, 'gcloud.log')), false)
-rmSync(join(dir, 'bin', `bqto-pro_linux_${arch}`))
+assert.ok(args().includes('--web=false'), args().join(' '))
+
+// A carried bqto Pro with a key it refuses works as the free bqto, so it gets no --web=false.
+r = action('main.mjs', { INPUT_EDITION: 'pro', INPUT_INSTANCE: 'db', 'INPUT_LICENSE-KEY': 'BQTO-bad', INPUT_RUN: 'true' })
+assert.equal(r.status, 0, r.stdout + r.stderr)
+assert.ok(!args().includes('--web=false'), args().join(' '))
+
+// Without a key, edition pro keeps the beta download even when the action carries a paid build.
+r = action('main.mjs', pro({ INPUT_INSTANCE: 'db', INPUT_RUN: 'true' }))
+assert.equal(r.status, 0, r.stdout + r.stderr)
+assert.notEqual(readFileSync(join(dir, 'bqto-path'), 'utf8').trim(), carried)
+rmSync(carried)
 
 // license-key: bqto gets the key, the log masks it, and the command in run does not see it.
 r = action('main.mjs', pro({ INPUT_INSTANCE: 'db', 'INPUT_LICENSE-KEY': 'BQTO-1111-2222', INPUT_RUN: 'test -z "\${BQTO_LICENSE_KEY+set}" && echo no-key' }))

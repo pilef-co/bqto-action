@@ -1,11 +1,17 @@
 #!/bin/sh
 # Replace the carried bqto Pro binaries with those of a paid release in pilef-co/bqto-pro-releases,
-# checked against that release's checksums.txt. Usage: bin/update-pro.sh v0.12.0
+# checked against that release's checksums.txt. Without a tag, it carries the release in
+# pro-checksums.txt again, so `git diff --exit-code bin/` proves bin/ matches it.
+# Usage: bin/update-pro.sh [v0.12.0]
 set -eu
 cd "$(dirname "$0")"
-tag=${1:-}
+if [ -z "${1:-}" ] && [ ! -f pro-checksums.txt ]; then
+	echo "bin/ carries no bqto Pro"
+	exit 0
+fi
+tag=${1:-v$(sed -n 's/^[0-9a-f]\{64\}  bqto-pro_\([0-9][0-9.]*\)_linux_amd64\.tar\.gz$/\1/p' pro-checksums.txt)}
 if ! printf '%s\n' "$tag" | grep -Eqx 'v[0-9]+\.[0-9]+\.[0-9]+'; then
-	echo "error: give a bqto Pro release tag such as v0.12.0" >&2
+	echo "error: $tag is not a bqto Pro release tag such as v0.12.0" >&2
 	exit 1
 fi
 v=${tag#v}

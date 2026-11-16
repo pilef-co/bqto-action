@@ -40,4 +40,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           bin/update.sh
-          git diff --exit-code --stat -- bin/ || { echo "::error::bin/ differs from the bqto release in bin/checksums.txt"; exit 1; }
+          bin/update-pro.sh
+          git diff --exit-code --stat -- bin/ || { echo "::error::bin/ differs from the releases in bin/checksums.txt and bin/pro-checksums.txt"; exit 1; }
