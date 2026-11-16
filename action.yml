@@ -38,7 +38,7 @@ inputs:
     description: "Extra bqto connect flags, such as --debug. The action splits them into words as a shell does, with quotes and backslashes, but expands nothing. The action refuses --."
     required: false
   edition:
-    description: "Which bqto runs: free runs the bqto binary that this action ships, pro downloads the newest bqto Pro beta build from Artifact Registry with the job's gcloud account."
+    description: "Which bqto runs: free runs the bqto binary that this action ships, pro runs bqto Pro: the build this action carries when the job gives license-key, else the newest beta build from Artifact Registry with the job's gcloud account."
     required: false
     default: free
   license-key:

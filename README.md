@@ -300,6 +300,7 @@ bqto binaries.
 
 ## License
 
-The action and the bqto binaries in `bin/` are licensed under the
-[Apache License 2.0](LICENSE). bqto Pro is a separate product with its own
-terms.
+The action and the free bqto binaries in `bin/` (`bqto_linux_*`) are licensed
+under the [Apache License 2.0](LICENSE). The bqto Pro binaries in `bin/`
+(`bqto-pro_linux_*`) are proprietary, and their use is subject to the
+[bqto Pro terms](https://bqto.dev/eula).

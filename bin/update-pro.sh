@@ -6,6 +6,12 @@
 set -eu
 cd "$(dirname "$0")"
 if [ -z "${1:-}" ] && [ ! -f pro-checksums.txt ]; then
+	for f in bqto-pro_linux_*; do
+		if [ -e "$f" ]; then
+			echo "error: bin/$f has no pro-checksums.txt to check it against; run bin/update-pro.sh with its tag" >&2
+			exit 1
+		fi
+	done
 	echo "bin/ carries no bqto Pro"
 	exit 0
 fi
