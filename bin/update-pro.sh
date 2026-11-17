@@ -12,8 +12,8 @@ if [ -z "${1:-}" ] && [ ! -f pro-checksums.txt ]; then
 			exit 1
 		fi
 	done
-	echo "bin/ carries no bqto Pro"
-	exit 0
+	echo "error: bin/ carries no bqto Pro, so edition: pro would fail; run bin/update-pro.sh with a bqto Pro release tag" >&2
+	exit 1
 fi
 tag=${1:-v$(sed -n 's/^[0-9a-f]\{64\}  bqto-pro_\([0-9][0-9.]*\)_linux_amd64\.tar\.gz$/\1/p' pro-checksums.txt)}
 if ! printf '%s\n' "$tag" | grep -Eqx 'v[0-9]+\.[0-9]+\.[0-9]+'; then

@@ -253,8 +253,8 @@ or organization secret, and pass it in `license-key`:
           config: .github/bqto.toml
 ```
 
-A seat's key works in CI (continuous integration) without taking one of the
-seat's computers, in every job and repository. The action hides the key in the log. The command in `run`
+A seat's key works in CI without taking one of the seat's computers, in every
+job and repository. The action hides the key in the log. The command in `run`
 and later steps do not get the key in their environment. Without a key, or if
 bqto Pro cannot use the key, the job runs as the free bqto, and a Pro feature
 shows the reason.
