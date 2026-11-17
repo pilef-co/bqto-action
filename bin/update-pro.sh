@@ -1,7 +1,8 @@
 #!/bin/sh
 # Replace the carried bqto Pro binaries with those of a paid release in pilef-co/bqto-pro-releases,
 # checked against that release's checksums.txt. Without a tag, it carries the release in
-# pro-checksums.txt again, so `git diff --exit-code bin/` proves bin/ matches it.
+# pro-checksums.txt again, so `git diff --exit-code bin/` proves bin/ matches it,
+# and it fails when bin/ carries no bqto Pro.
 # Usage: bin/update-pro.sh [v0.12.0]
 set -eu
 cd "$(dirname "$0")"

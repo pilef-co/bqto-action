@@ -39,4 +39,4 @@ It downloads the Linux archives and `checksums.txt` of that release from
 `pilef-co/bqto-pro-releases`, checks each archive, and writes
 `bin/bqto-pro_linux_amd64`, `bin/bqto-pro_linux_arm64` and
 `bin/pro-checksums.txt`. A job with `edition: pro` runs the carried build. CI
-runs the script without a tag and fails if `bin/` changes.
+runs the script without a tag and fails if `bin/` changes or carries no bqto Pro.
