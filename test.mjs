@@ -1,7 +1,6 @@
-// Runs main.mjs and post.mjs against a fake bqto and a fake gcloud. Linux only: node test.mjs
+// Runs main.mjs and post.mjs against a fake bqto. Linux only: node test.mjs
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
 import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -45,70 +44,11 @@ shift
 PGPORT=15432 exec "$@"
 `
 
-const GCLOUD = `#!/bin/sh
-echo "$*" >>"$RUNNER_TEMP/gcloud.log"
-if [ "$FAKE_GCLOUD" = denied ]; then
-	echo "ERROR: (gcloud.artifacts.versions.list) PERMISSION_DENIED: Permission 'artifactregistry.versions.list' denied on resource (or it may not exist)." >&2
-	exit 1
-fi
-case "$1 $2 $3" in
-"artifacts versions list")
-	cat "$FAKE_STORE/versions.json"
-	;;
-"artifacts generic download")
-	for a; do
-		case $a in
-		--version=*) v=\${a#*=} ;;
-		--name=*) n=\${a#*=} ;;
-		--destination=*) d=\${a#*=} ;;
-		esac
-	done
-	[ -f "$FAKE_STORE/$v/$n" ] || { echo "ERROR: NOT_FOUND: $v/$n" >&2; exit 1; }
-	cp "$FAKE_STORE/$v/$n" "$d/"
-	;;
-*) exit 2 ;;
-esac
-`
-
 const arch = { x64: 'amd64', arm64: 'arm64' }[process.arch]
 const dir = mkdtempSync(join(tmpdir(), 'bqto-action-'))
 for (const file of ['main.mjs', 'post.mjs']) copyFileSync(file, join(dir, file))
 mkdirSync(join(dir, 'bin'))
 writeFileSync(join(dir, 'bin', `bqto_linux_${arch}`), FAKE, { mode: 0o755 })
-mkdirSync(join(dir, 'gcloud'))
-writeFileSync(join(dir, 'gcloud', 'gcloud'), GCLOUD, { mode: 0o755 })
-
-// Two Artifact Registry stores: the newest build holds the files, and the bad one has a wrong checksum.
-const NEWEST = '0.8.0-ends20991130-5'
-const store = (name, sum, newest = NEWEST, extra = []) => {
-  const root = join(dir, name)
-  const files = join(root, newest)
-  mkdirSync(files, { recursive: true })
-  mkdirSync(join(root, 'src'))
-  writeFileSync(join(root, 'src', 'bqto'), FAKE, { mode: 0o755 })
-  const archive = `bqto-pro_0.8.0_linux_${arch}.tar.gz`
-  assert.equal(spawnSync('tar', ['-czf', join(files, archive), '-C', join(root, 'src'), 'bqto']).status, 0)
-  const real = createHash('sha256').update(readFileSync(join(files, archive))).digest('hex')
-  writeFileSync(join(files, 'checksums.txt'), `${'0'.repeat(64)}  bqto-pro_0.8.0_darwin_arm64.tar.gz\n${sum(real)}  ${archive}\n`)
-  writeFileSync(
-    join(root, 'versions.json'),
-    JSON.stringify([
-      { name: 'projects/p/locations/l/repositories/r/packages/bqto-pro/versions/0.7.0-ends20991130-1', createTime: '2026-10-01T10:00:00.123456Z' },
-      { name: `projects/p/locations/l/repositories/r/packages/bqto-pro/versions/${newest}`, createTime: '2026-10-20T10:00:00.5Z' },
-      { name: 'projects/p/locations/l/repositories/r/packages/bqto-pro/versions/0.9.0-ends20991130-1', createTime: '2026-10-05T10:00:00Z' },
-      { name: 'projects/p/locations/l/repositories/r/packages/bqto-pro/versions/0.9.0-ends20991130-2', createTime: 'not a time' },
-      ...extra,
-      { name: 'projects/p/locations/l/repositories/r/packages/bqto-pro/versions/0.8.0-ends20991130-3', createTime: '2026-10-10T10:00:00Z' },
-      { name: 'projects/p/locations/l/repositories/r/packages/bqto-pro/versions/latest', createTime: '2026-12-01T10:00:00Z' },
-    ]),
-  )
-  return root
-}
-const good = store('good', real => real)
-const bad = store('bad', real => real.replace(/^./, c => (c === 'a' ? 'b' : 'a')))
-const ended = store('ended', real => real, '0.8.0-ends20200101-10', [
-  { name: 'projects/p/locations/l/repositories/r/packages/bqto-pro/versions/0.8.0-ends20200101-9', createTime: '2026-10-20T10:00:00.5Z' },
-])
 
 const files = Object.fromEntries(['GITHUB_OUTPUT', 'GITHUB_ENV', 'GITHUB_STATE'].map(name => [name, join(dir, name)]))
 const baseEnv = () => {
@@ -120,18 +60,14 @@ const baseEnv = () => {
 }
 const action = (script, env) => {
   for (const file of Object.values(files)) writeFileSync(file, '')
-  for (const file of ['args', 'bqto-path', 'gcloud.log', 'config-seen', 'license-key']) rmSync(join(dir, file), { force: true })
+  for (const file of ['args', 'bqto-path', 'config-seen', 'license-key']) rmSync(join(dir, file), { force: true })
   return spawnSync('node', [join(dir, script)], { env: { ...baseEnv(), ...env }, encoding: 'utf8' })
 }
-const pro = env => ({
-  INPUT_EDITION: 'pro',
-  'INPUT_PRO-PROJECT': 'prj-builds',
-  'INPUT_PRO-LOCATION': 'us-central1',
-  'INPUT_PRO-REPOSITORY': 'builds',
-  PATH: `${join(dir, 'gcloud')}:${process.env.PATH}`,
-  FAKE_STORE: good,
-  ...env,
-})
+const carried = join(dir, 'bin', `bqto-pro_linux_${arch}`)
+const pro = env => {
+  writeFileSync(carried, FAKE, { mode: 0o755 })
+  return { INPUT_EDITION: 'pro', ...env }
+}
 const read = name =>
   Object.fromEntries([...readFileSync(files[name], 'utf8').matchAll(/^(\w+)<<(\S+)\n(.*)\n\2$/gm)].map(m => [m[1], m[3]]))
 const args = () => readFileSync(join(dir, 'args'), 'utf8').trim().split('\n')
@@ -192,21 +128,13 @@ r = action('main.mjs', { INPUT_INSTANCE: 'gone' })
 assert.equal(r.status, 1)
 assert.match(r.stdout, /instance not found[\s\S]*::error::bqto ended before the session was ready/)
 
-// Pro: the newest build by create time, checked against checksums.txt, runs a Cloud Run session with a profile file.
+// Pro: the carried build runs a Cloud Run session with a profile file.
 writeFileSync(join(dir, 'profiles.toml'), '[profiles.app]\nservice = "cloudrun"\n')
 r = action('main.mjs', pro({ INPUT_SERVICE: 'cloudrun', INPUT_INSTANCE: 'europe-west1/app', INPUT_CONFIG: join(dir, 'profiles.toml'), INPUT_ARGS: '--web' }))
 assert.equal(r.status, 0, r.stdout + r.stderr)
-assert.match(readFileSync(join(dir, 'bqto-path'), 'utf8'), /\/bqto-pro-[^/]+\/bin\/bqto\n$/)
-assert.match(r.stdout, new RegExp(`bqto Pro ${NEWEST}, bqto-pro_0.8.0_linux_${arch}.tar.gz matches its checksums.txt`))
+assert.equal(readFileSync(join(dir, 'bqto-path'), 'utf8').trim(), carried)
 assert.match(r.stdout, /^::add-mask::s3cret-token$/m)
 assert.equal(readFileSync(join(dir, 'config-seen'), 'utf8'), '[profiles.app]\nservice = "cloudrun"\n')
-const calls = readFileSync(join(dir, 'gcloud.log'), 'utf8').trim().split('\n')
-const where = '--project=prj-builds --location=us-central1 --repository=builds --package=bqto-pro'
-assert.equal(calls.length, 3)
-assert.equal(calls[0], `artifacts versions list ${where} --format=json --quiet`)
-for (const [i, name] of ['checksums.txt', `bqto-pro_0.8.0_linux_${arch}.tar.gz`].entries()) {
-  assert.ok(calls[i + 1].startsWith(`artifacts generic download ${where} --version=${NEWEST} --name=${name} --destination=${dir}/bqto-pro-`), calls[i + 1])
-}
 assert.equal(read('GITHUB_OUTPUT').proxy, 'socks5')
 assert.deepEqual(read('GITHUB_ENV'), { BQTO_HOST: '127.0.0.1', BQTO_PORT: '1080', BQTO_PROXY: 'socks5h://127.0.0.1:1080' })
 state = read('GITHUB_STATE')
@@ -225,58 +153,32 @@ r = action('main.mjs', pro({ INPUT_PROFILE: 'app', INPUT_CONFIG: join(dir, 'prof
 assert.equal(r.status, 0, r.stdout + r.stderr)
 assert.match(r.stdout, /^clean$/m)
 assert.equal(readFileSync(join(dir, 'config-seen'), 'utf8'), '[profiles.app]\nservice = "cloudrun"\n')
-assert.match(args().join(' '), /^connect --profile app --no-input --web=false -- env -u XDG_CONFIG_HOME bash /)
+assert.match(args().join(' '), /^connect --profile app --no-input -- env -u XDG_CONFIG_HOME bash /)
 r = action('main.mjs', pro({ INPUT_PROFILE: 'app', INPUT_CONFIG: join(dir, 'profiles.toml'), INPUT_RUN: 'echo "xdg=$XDG_CONFIG_HOME"', XDG_CONFIG_HOME: '/x' }))
 assert.equal(r.status, 0, r.stdout + r.stderr)
 assert.match(r.stdout, /^xdg=\/x$/m)
 
-// Pro: of two builds made at the same time, the higher run id; a build past its last day warns.
-r = action('main.mjs', pro({ INPUT_INSTANCE: 'db', INPUT_RUN: 'true', FAKE_STORE: ended }))
-assert.equal(r.status, 0, r.stdout + r.stderr)
-assert.match(r.stdout, /bqto Pro 0.8.0-ends20200101-10,/)
-assert.equal(args().join(' '), 'connect --instance db --no-input -- bash --noprofile --norc -eo pipefail -c true')
-assert.match(r.stdout, /::warning::the newest bqto Pro beta build ended after 20200101/)
-
-// Pro: a missing reader role fails with the cause and a Fix line, before bqto runs.
-r = action('main.mjs', pro({ INPUT_INSTANCE: 'db', INPUT_RUN: 'true', FAKE_GCLOUD: 'denied' }))
-assert.equal(r.status, 1)
-assert.match(
-  r.stdout,
-  /^::error::cannot list the bqto Pro builds: the job's Google account cannot read projects\/prj-builds\/locations\/us-central1\/repositories\/builds%0AFix: grant roles\/artifactregistry.reader on that repository/m,
-)
-assert.equal(existsSync(join(dir, 'args')), false)
-
-// Pro: an archive that does not match checksums.txt never runs.
-r = action('main.mjs', pro({ INPUT_INSTANCE: 'db', INPUT_RUN: 'true', FAKE_STORE: bad }))
-assert.equal(r.status, 1)
-assert.match(r.stdout, /::error::bqto-pro_0.8.0_linux_\w+.tar.gz of bqto Pro 0.8.0-ends20991130-5 does not match its checksums.txt%0AFix:/)
-assert.equal(existsSync(join(dir, 'args')), false)
-
-// Pro: an input that is not a plain name never reaches gcloud.
-r = action('main.mjs', pro({ INPUT_INSTANCE: 'db', INPUT_RUN: 'true', 'INPUT_PRO-PROJECT': '--impersonate-service-account=x' }))
-assert.equal(r.status, 1)
-assert.match(r.stdout, /::error::pro-project is not a valid project/)
-assert.equal(existsSync(join(dir, 'gcloud.log')), false)
-
-// A carried bqto Pro: with a key, edition pro runs it and asks Artifact Registry nothing.
-const carried = join(dir, 'bin', `bqto-pro_linux_${arch}`)
-writeFileSync(carried, FAKE, { mode: 0o755 })
-r = action('main.mjs', { INPUT_EDITION: 'pro', INPUT_INSTANCE: 'db', 'INPUT_LICENSE-KEY': 'BQTO-good', INPUT_RUN: 'true' })
+// Pro: a key that bqto Pro accepts adds --web=false with run, and the key reaches license status.
+r = action('main.mjs', pro({ INPUT_INSTANCE: 'db', 'INPUT_LICENSE-KEY': 'BQTO-good', INPUT_RUN: 'true' }))
 assert.equal(r.status, 0, r.stdout + r.stderr)
 assert.equal(readFileSync(join(dir, 'bqto-path'), 'utf8').trim(), carried)
-assert.equal(existsSync(join(dir, 'gcloud.log')), false)
-assert.ok(args().includes('--web=false'), args().join(' '))
+assert.equal(args().join(' '), 'connect --instance db --no-input --web=false -- env -u BQTO_LICENSE_KEY bash --noprofile --norc -eo pipefail -c true')
 
-// A carried bqto Pro with a key it refuses works as the free bqto, so it gets no --web=false.
-r = action('main.mjs', { INPUT_EDITION: 'pro', INPUT_INSTANCE: 'db', 'INPUT_LICENSE-KEY': 'BQTO-bad', INPUT_RUN: 'true' })
+// Pro: with a key it refuses, or with no key, bqto Pro works as the free bqto, so it gets no --web=false.
+r = action('main.mjs', pro({ INPUT_INSTANCE: 'db', 'INPUT_LICENSE-KEY': 'BQTO-bad', INPUT_RUN: 'true' }))
 assert.equal(r.status, 0, r.stdout + r.stderr)
 assert.ok(!args().includes('--web=false'), args().join(' '))
-
-// Without a key, edition pro keeps the beta download even when the action carries a paid build.
 r = action('main.mjs', pro({ INPUT_INSTANCE: 'db', INPUT_RUN: 'true' }))
 assert.equal(r.status, 0, r.stdout + r.stderr)
-assert.notEqual(readFileSync(join(dir, 'bqto-path'), 'utf8').trim(), carried)
+assert.equal(readFileSync(join(dir, 'bqto-path'), 'utf8').trim(), carried)
+assert.equal(args().join(' '), 'connect --instance db --no-input -- bash --noprofile --norc -eo pipefail -c true')
+
+// Pro: an action that carries no bqto Pro fails with a Fix line, before bqto runs.
 rmSync(carried)
+r = action('main.mjs', { INPUT_EDITION: 'pro', INPUT_INSTANCE: 'db', 'INPUT_LICENSE-KEY': 'BQTO-good', INPUT_RUN: 'true' })
+assert.equal(r.status, 1)
+assert.match(r.stdout, /^::error::this version of bqto-action carries no bqto Pro%0AFix: use a newer version of pilef-co\/bqto-action$/m)
+assert.equal(existsSync(join(dir, 'args')), false)
 
 // license-key: bqto gets the key, the log masks it, and the command in run does not see it.
 r = action('main.mjs', pro({ INPUT_INSTANCE: 'db', 'INPUT_LICENSE-KEY': 'BQTO-1111-2222', INPUT_RUN: 'test -z "\${BQTO_LICENSE_KEY+set}" && echo no-key' }))

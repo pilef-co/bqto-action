@@ -23,7 +23,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: the action works against a fake bqto and a fake gcloud
+      - name: the action works against a fake bqto
         run: node test.mjs
       - name: the vendored bqto runs on this runner
         run: bin/bqto_linux_"$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')" version
