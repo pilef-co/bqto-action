@@ -3,6 +3,7 @@ name: ci
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
 
 permissions:
@@ -23,7 +24,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: the action works against a fake bqto and a fake gcloud
+      - name: the action works against a fake bqto
         run: node test.mjs
       - name: the vendored bqto runs on this runner
         run: bin/bqto_linux_"$(uname -m | sed 's/x86_64/amd64/; s/aarch64/arm64/')" version
@@ -40,4 +41,5 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           bin/update.sh
-          git diff --exit-code --stat -- bin/ || { echo "::error::bin/ differs from the bqto release in bin/checksums.txt"; exit 1; }
+          bin/update-pro.sh
+          git diff --exit-code --stat -- bin/ || { echo "::error::bin/ differs from the releases in bin/checksums.txt and bin/pro-checksums.txt"; exit 1; }

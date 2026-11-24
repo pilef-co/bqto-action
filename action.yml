@@ -38,9 +38,12 @@ inputs:
     description: "Extra bqto connect flags, such as --debug. The action splits them into words as a shell does, with quotes and backslashes, but expands nothing. The action refuses --."
     required: false
   edition:
-    description: "Which bqto runs: free runs the bqto binary that this action ships, pro downloads the newest bqto Pro beta build from Artifact Registry with the job's gcloud account."
+    description: "Which bqto runs: free runs the free bqto that this action carries, pro runs the bqto Pro that this action carries, which needs a seat's key in license-key."
     required: false
     default: free
+  license-key:
+    description: "bqto Pro: the license key of a bqto Pro seat. Keep it in a secret, such as secrets.BQTO_LICENSE_KEY."
+    required: false
   profile:
     description: "bqto Pro: one or more saved profiles, separated by commas, in one session."
     required: false
@@ -50,18 +53,6 @@ inputs:
   config:
     description: "bqto Pro: path to a bqto config.toml that holds the profiles and stacks, such as .github/bqto.toml."
     required: false
-  pro-project:
-    description: "bqto Pro: project of the Artifact Registry repository that holds the beta builds."
-    required: false
-    default: prj-bqto-beta
-  pro-location:
-    description: "bqto Pro: location of the Artifact Registry repository."
-    required: false
-    default: europe-west1
-  pro-repository:
-    description: "bqto Pro: name of the Artifact Registry repository."
-    required: false
-    default: bqto-pro
 
 outputs:
   host:

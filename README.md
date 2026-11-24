@@ -173,13 +173,11 @@ All inputs are optional. Set `instance`, or with bqto Pro, `profile` or
 | `zone` | no |  | Zone of the bastion VM. bqto's default is the first zone in the region with capacity. |
 | `port` | no |  | Local port. bqto's default is the service's port + 10000. |
 | `args` | no |  | Extra bqto connect flags, such as --debug. The action splits them into words as a shell does, with quotes and backslashes, but expands nothing. The action refuses --. |
-| `edition` | no | `free` | Which bqto runs: free runs the bqto binary that this action ships, pro downloads the newest bqto Pro beta build from Artifact Registry with the job's gcloud account. |
+| `edition` | no | `free` | Which bqto runs: free runs the free bqto that this action carries, pro runs the bqto Pro that this action carries, which needs a seat's key in license-key. |
+| `license-key` | no |  | bqto Pro: the license key of a bqto Pro seat. Keep it in a secret, such as `secrets.BQTO_LICENSE_KEY`. |
 | `profile` | no |  | bqto Pro: one or more saved profiles, separated by commas, in one session. |
 | `stack` | no |  | bqto Pro: a saved stack of profiles, in one session. |
 | `config` | no |  | bqto Pro: path to a bqto config.toml that holds the profiles and stacks, such as .github/bqto.toml. |
-| `pro-project` | no | `prj-bqto-beta` | bqto Pro: project of the Artifact Registry repository that holds the beta builds. |
-| `pro-location` | no | `europe-west1` | bqto Pro: location of the Artifact Registry repository. |
-| `pro-repository` | no | `bqto-pro` | bqto Pro: name of the Artifact Registry repository. |
 
 The action always passes `--no-input`. When runner debug logging is on, it also
 passes `--debug`.
@@ -242,22 +240,27 @@ On GitLab CI, Cloud Build, Jenkins and other CI systems, install bqto and run
 
 ## bqto Pro
 
-bqto Pro is the paid build of bqto, now in beta. To try it, join the beta at
-https://bqto.dev/#waitlist. With `edition: pro`, the action downloads the newest
-bqto Pro build, checks it against its `checksums.txt` and runs it in place of
-the free bqto. The service account of the job needs
-`roles/artifactregistry.reader` on the beta repository, which Pilef grants
-during the beta.
+bqto Pro is the paid edition of bqto. With `edition: pro`, the action runs the
+bqto Pro build that it carries. Save the key of a bqto Pro seat as a repository
+or organization secret, and pass it in `license-key`:
 
 ```yaml
       - uses: pilef-co/bqto-action@v1
         with:
           edition: pro
-          service: cloudrun
-          project: my-project
-          instance: europe-west1/api
-          run: curl -fsS https://api-123456.europe-west1.run.app/healthz
+          license-key: ${{ secrets.BQTO_LICENSE_KEY }}
+          profile: api
+          config: .github/bqto.toml
 ```
+
+A seat's key works in CI without taking one of the seat's computers, in every
+job and repository. The action hides the key in the log, and the command in
+`run` does not get it in its own environment. But bqto and node keep the key in
+their environment while they run, and any process on the runner can read it
+there, for example from `/proc`. So the command in `run` and later steps can
+read the key. Run only commands you trust in a job that has the key. Without a
+key, or if bqto Pro cannot use the key, the job runs as the free bqto, and a Pro
+feature shows the reason.
 
 What the action does differently with bqto Pro:
 
@@ -269,10 +272,6 @@ What the action does differently with bqto Pro:
   in later steps.
 - With `run`, the action refuses `--web`, because bqto prints the web proxy
   secret. Without `run`, it masks `web_token` in the log.
-- After the last day of the beta, the build works as the free bqto, and the
-  action shows a warning.
-
-The bqto Pro README, in each build, has the details of each feature.
 
 ## Contributing
 
@@ -281,6 +280,7 @@ bqto binaries.
 
 ## License
 
-The action and the bqto binaries in `bin/` are licensed under the
-[Apache License 2.0](LICENSE). bqto Pro is a separate product with its own
-terms.
+The action and the free bqto binaries in `bin/` (`bqto_linux_*`) are licensed
+under the [Apache License 2.0](LICENSE). The bqto Pro binaries in `bin/`
+(`bqto-pro_linux_*`) are proprietary, and their use is subject to the
+[bqto Pro terms](https://bqto.dev/eula).

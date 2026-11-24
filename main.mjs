@@ -1,13 +1,11 @@
 import { spawn, spawnSync } from 'node:child_process'
-import { createHash, randomUUID } from 'node:crypto'
-import { appendFileSync, chmodSync, copyFileSync, lstatSync, mkdirSync, mkdtempSync, openSync, readFileSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { appendFileSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, openSync, readFileSync } from 'node:fs'
 import { constants } from 'node:os'
 import { join } from 'node:path'
 import { setTimeout as sleep } from 'node:timers/promises'
 
 const READY_TIMEOUT = 5 * 60_000
-const PRO_PACKAGE = 'bqto-pro'
-const PRO_VERSION = /^(\d+\.\d+\.\d+)-ends(\d{8})-\d+$/
 
 const input = name => (process.env[`INPUT_${name.toUpperCase()}`] ?? '').trim()
 
@@ -55,89 +53,6 @@ const split = s => {
   return words
 }
 
-const gcloud = args => {
-  const r = spawnSync('gcloud', [...args, '--quiet'], { encoding: 'utf8', maxBuffer: 16 << 20 })
-  if (r.error?.code === 'ENOENT') {
-    fail('gcloud is not on PATH\nFix: add google-github-actions/setup-gcloud before this step')
-  }
-  if (r.error) fail(`cannot run gcloud: ${r.error.message}`)
-  return r
-}
-
-const gcloudFail = (r, what, repository) => {
-  const err = r.stderr ?? ''
-  if (/PERMISSION_DENIED|does not have permission|\b403\b/i.test(err)) {
-    fail(
-      `cannot ${what}: the job's Google account cannot read ${repository}\n` +
-        "Fix: grant roles/artifactregistry.reader on that repository to the service account of google-github-actions/auth; in the beta, send that account's email to Pilef through https://bqto.dev",
-    )
-  }
-  if (/active account|credential|reauthenticat|UNAUTHENTICATED|\b401\b/i.test(err)) {
-    fail(
-      `cannot ${what}: gcloud is not signed in\n` +
-        'Fix: add google-github-actions/auth with service_account, and setup-gcloud, before this step',
-    )
-  }
-  if (/NOT_FOUND|\b404\b/i.test(err)) {
-    if (what.startsWith('download')) fail(`cannot ${what}: the build has no such file\nFix: run the job again later; if it fails again, open an issue at https://github.com/pilef-co/bqto/issues`)
-    fail(`cannot ${what}: ${repository} has no ${PRO_PACKAGE} package\nFix: check the pro-project, pro-location and pro-repository inputs`)
-  }
-  console.log(err.split('\n').slice(-20).join('\n'))
-  fail(`cannot ${what}: gcloud exited with ${r.status}`)
-}
-
-const sha256 = file => createHash('sha256').update(readFileSync(file)).digest('hex')
-
-const proBinary = arch => {
-  const where = {}
-  for (const name of ['project', 'location', 'repository']) {
-    where[name] = input(`pro-${name}`)
-    if (!/^[a-z0-9][a-z0-9.:_-]*$/i.test(where[name])) fail(`pro-${name} is not a valid ${name}: ${where[name]}`)
-  }
-  const repository = `projects/${where.project}/locations/${where.location}/repositories/${where.repository}`
-  const flags = [`--project=${where.project}`, `--location=${where.location}`, `--repository=${where.repository}`, `--package=${PRO_PACKAGE}`]
-
-  let r = gcloud(['artifacts', 'versions', 'list', ...flags, '--format=json'])
-  if (r.status !== 0) gcloudFail(r, 'list the bqto Pro builds', repository)
-  let versions
-  try {
-    versions = JSON.parse(r.stdout)
-  } catch {
-    fail('cannot list the bqto Pro builds: gcloud did not print JSON')
-  }
-  const [newest] = (Array.isArray(versions) ? versions : [])
-    .map(v => ({ id: String(v?.name ?? '').split('/').pop(), time: Date.parse(v?.createTime) }))
-    .filter(v => PRO_VERSION.test(v.id) && !Number.isNaN(v.time))
-    .sort((a, b) => b.time - a.time || Number(BigInt(b.id.split('-').pop()) - BigInt(a.id.split('-').pop())))
-  if (!newest) fail(`${repository} has no bqto Pro build\nFix: check the pro-project, pro-location and pro-repository inputs`)
-  const [, release, ends] = newest.id.match(PRO_VERSION)
-
-  const dir = mkdtempSync(join(process.env.RUNNER_TEMP, 'bqto-pro-'))
-  const archive = `bqto-pro_${release}_linux_${arch}.tar.gz`
-  for (const name of ['checksums.txt', archive]) {
-    r = gcloud(['artifacts', 'generic', 'download', ...flags, `--version=${newest.id}`, `--name=${name}`, `--destination=${dir}`])
-    if (r.status !== 0) gcloudFail(r, `download ${name} of bqto Pro ${newest.id}`, repository)
-  }
-  const sums = readFileSync(join(dir, 'checksums.txt'), 'utf8')
-    .split('\n')
-    .map(line => line.match(/^([0-9a-f]{64}) [ *]?(\S+)$/))
-    .filter(m => m && m[2] === archive)
-  if (sums.length !== 1 || sums[0][1] !== sha256(join(dir, archive))) {
-    fail(`${archive} of bqto Pro ${newest.id} does not match its checksums.txt\nFix: run the job again; if it fails again, open an issue at https://github.com/pilef-co/bqto/issues`)
-  }
-  const bin = join(dir, 'bin')
-  mkdirSync(bin)
-  r = spawnSync('tar', ['-xzf', join(dir, archive), '-C', bin, 'bqto'], { encoding: 'utf8' })
-  if (r.status !== 0) fail(`cannot extract bqto from ${archive}: ${r.stderr || r.error?.message}`)
-  if (!lstatSync(join(bin, 'bqto')).isFile()) fail(`bqto in ${archive} is not a regular file`)
-  chmodSync(join(bin, 'bqto'), 0o755)
-
-  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '')
-  if (ends < today) console.log(`::warning::the newest bqto Pro beta build ended after ${ends}; it works as the free bqto`)
-  console.log(`bqto Pro ${newest.id}, ${archive} matches its checksums.txt`)
-  return { path: join(bin, 'bqto'), live: ends >= today }
-}
-
 const arch = { x64: 'amd64', arm64: 'arm64' }[process.arch]
 if (process.platform !== 'linux' || !arch) {
   fail(`bqto-action runs on Linux runners, amd64 or arm64, not ${process.platform} ${process.arch}`)
@@ -145,8 +60,10 @@ if (process.platform !== 'linux' || !arch) {
 
 const edition = input('edition') || 'free'
 if (edition !== 'free' && edition !== 'pro') fail(`edition is ${edition}, not free or pro`)
-const pro = edition === 'pro' ? proBinary(arch) : null
-const bqto = pro?.path ?? join(import.meta.dirname, 'bin', `bqto_linux_${arch}`)
+const licenseKey = input('license-key')
+const pro = edition === 'pro'
+const bqto = join(import.meta.dirname, 'bin', `${pro ? 'bqto-pro' : 'bqto'}_linux_${arch}`)
+if (pro && !existsSync(bqto)) fail('this version of bqto-action carries no bqto Pro\nFix: use a newer version of pilef-co/bqto-action')
 
 const env = { ...process.env }
 const config = input('config')
@@ -160,7 +77,23 @@ if (config) {
   }
   env.XDG_CONFIG_HOME = home
 }
-const runEnv = config ? (process.env.XDG_CONFIG_HOME ? ['env', `XDG_CONFIG_HOME=${process.env.XDG_CONFIG_HOME}`] : ['env', '-u', 'XDG_CONFIG_HOME']) : []
+// The runner also passes the key as INPUT_LICENSE-KEY; only bqto gets it, as BQTO_LICENSE_KEY.
+delete env['INPUT_LICENSE-KEY']
+if (licenseKey) {
+  console.log(`::add-mask::${escape(licenseKey)}`)
+  if (edition !== 'pro') console.log('::warning::license-key needs edition: pro. The free bqto ignores the key.')
+  env.BQTO_LICENSE_KEY = licenseKey
+}
+// The command in run gets the job's XDG_CONFIG_HOME back, and never the license key.
+// env reads options only before the first NAME=VALUE, so every -u comes first.
+const unset = []
+const set = []
+if (config) {
+  if (process.env.XDG_CONFIG_HOME) set.push(`XDG_CONFIG_HOME=${process.env.XDG_CONFIG_HOME}`)
+  else unset.push('XDG_CONFIG_HOME')
+}
+if (licenseKey) unset.push('BQTO_LICENSE_KEY')
+const runEnv = unset.length || set.length ? ['env', ...unset.flatMap(name => ['-u', name]), ...set] : []
 
 const args = ['connect']
 for (const name of ['service', 'project', 'instance', 'profile', 'stack', 'network', 'region', 'zone', 'duration', 'port']) {
@@ -177,7 +110,8 @@ const webOff = ['0', 'f', 'F', 'false', 'FALSE', 'False']
 if (run && extra.some(a => /^--?web(=|$)/.test(a) && !webOff.includes(a.split('=')[1]))) {
   fail('--web with run would print the web proxy secret in the job log\nFix: drop --web; the command reaches Cloud Run through ALL_PROXY and HTTPS_PROXY')
 }
-if (run && pro?.live) args.push('--web=false')
+// bqto Pro without a working key runs as the free bqto, which refuses --web.
+if (run && pro && spawnSync(bqto, ['license', 'status'], { env, encoding: 'utf8' }).status === 0) args.push('--web=false')
 if (run) {
   // The command's exit code is bqto's, and the runner's cancel signal goes to node only.
   const child = spawn(bqto, [...args, '--', ...runEnv, 'bash', '--noprofile', '--norc', '-eo', 'pipefail', '-c', run], {
