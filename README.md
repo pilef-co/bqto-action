@@ -255,8 +255,8 @@ or organization secret, and pass it in `license-key`:
 
 A seat's key works in CI without taking one of the seat's computers, in every
 job and repository. The action hides the key in the log, and the command in
-`run` does not get it in its own environment. But bqto keeps the key in its
-environment while the session is open, and any process on the runner can read it
+`run` does not get it in its own environment. But bqto and node keep the key in
+their environment while they run, and any process on the runner can read it
 there, for example from `/proc`. So the command in `run` and later steps can
 read the key. Run only commands you trust in a job that has the key. Without a
 key, or if bqto Pro cannot use the key, the job runs as the free bqto, and a Pro
